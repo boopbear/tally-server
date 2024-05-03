@@ -1,0 +1,374 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  OFFICE_ADMIN
+}
+
+// for ref only
+enum InventoryCategoryEnum {
+  NONE
+  CURRENT
+  OUTGOING
+}
+
+// for ref only
+enum InventoryAssetStatusEnum {
+  NONE
+  TRANSFER
+  REPAIR
+  TRADEIN
+  PULLOUT
+  TURNOVER
+  RETURNTOSUPPLIER
+  SALE
+  DONATE
+  SCRAP
+  DISPOSAL
+  SAFEKEEPING
+}
+
+model User {
+  id                     Int                      @id @default(autoincrement())
+  email                  String
+  googleId               String?
+  sharedId               String                   @unique @default(uuid())
+  createdAt              DateTime                 @default(now())
+  lastOtpQrGenerate      DateTime?
+  isArchived             Boolean                  @default(false)
+  customSettingsData     Json?
+  validRme               String?
+  validRmeExpiration     DateTime?
+  isHidden               Boolean                  @default(false)
+  reasonHide             String?                  @db.Text
+  role                   Role?                    @default(SUPER_ADMIN)
+  profile                Profile?
+  department             Department?              @relation(fields: [departmentId], references: [id])
+  departmentId           Int?
+  otpToken               OtpToken?                @relation(fields: [otpTokenId], references: [id])
+  otpTokenId             Int?                     @unique
+  posts                  Post[]
+  reports                DiscrepancyReport[]
+  inventoryAssetLogs     InventoryAssetLogs[]
+  discrepancyReportUsers DiscrepancyReportUsers[]
+  assetRequests          AssetRequests[]          @relation(name: "requestorUser")
+  assetRequestResponded  AssetRequests[]          @relation(name: "respondentUser")
+  notification           Notification[]
+  NotificationUserAction NotificationUserAction[]
+
+  @@map(name: "users")
+}
+
+model Profile {
+  id             Int         @id @default(autoincrement())
+  givenName      String?
+  familyName     String?
+  fullName       String?
+  birthDate      DateTime?
+  employeeNumber String?
+  profilePic     Attachment? @relation(fields: [profilePicId], references: [id])
+  profilePicId   Int?        @unique
+  user           User        @relation(fields: [userId], references: [id])
+  userId         Int         @unique
+
+  @@map(name: "profile")
+}
+
+model OtpToken {
+  id           Int      @id @default(autoincrement())
+  otp_base32   String?
+  otp_auth_url String?
+  createdAt    DateTime @default(now())
+  user         User?
+
+  @@map(name: "otptoken")
+}
+
+model Department {
+  id             Int              @id @default(autoincrement())
+  name           String?          @db.Text
+  location       String?          @db.Text
+  createdAt      DateTime         @default(now())
+  isArchived     Boolean          @default(false)
+  isHidden       Boolean          @default(false)
+  reasonHide     String?          @db.Text
+  users          User[]
+  inventoryAsset InventoryAsset[]
+
+  @@map(name: "department")
+}
+
+model Attachment {
+  id                    Int                     @id @default(autoincrement())
+  originalFileName      String?                 @db.Text
+  storageLink           String?                 @db.Text
+  pathString            String?                 @db.Text
+  fileType              String?
+  imageSize             Int?
+  createdAt             DateTime                @default(now())
+  profile               Profile?
+  postUploads           PostUploads[]
+  reportUploads         ReportUploads[]
+  inventoryAssetUploads InventoryAssetUploads[]
+  assetRequestsUploads  AssetRequestsUploads[]
+
+  @@map(name: "attachment")
+}
+
+model Post {
+  id          Int           @id @default(autoincrement())
+  title       String?       @db.Text
+  paragraph   String?       @db.Text
+  createdAt   DateTime      @default(now())
+  isArchived  Boolean       @default(false)
+  publisher   User?         @relation(fields: [publisherId], references: [id])
+  publisherId Int?
+  uploads     PostUploads[]
+
+  @@map(name: "posts")
+}
+
+model PostUploads {
+  id           Int         @id @default(autoincrement())
+  post         Post?       @relation(fields: [postId], references: [id])
+  postId       Int?
+  attachment   Attachment? @relation(fields: [attachmentId], references: [id])
+  attachmentId Int?
+
+  @@map(name: "postuploads")
+}
+
+model DiscrepancyReport {
+  id                     Int                      @id @default(autoincrement())
+  title                  String?                  @db.Text
+  paragraph              String?                  @db.Text
+  createdAt              DateTime                 @default(now())
+  isArchived             Boolean                  @default(false)
+  publisher              User?                    @relation(fields: [publisherId], references: [id])
+  publisherId            Int?
+  uploads                ReportUploads[]
+  discrepancyReportUsers DiscrepancyReportUsers[]
+
+  @@map(name: "discrepancyreports")
+}
+
+model ReportUploads {
+  id           Int                @id @default(autoincrement())
+  report       DiscrepancyReport? @relation(fields: [reportId], references: [id])
+  reportId     Int?
+  attachment   Attachment?        @relation(fields: [attachmentId], references: [id])
+  attachmentId Int?
+
+  @@map(name: "reportuploads")
+}
+
+model DiscrepancyReportUsers {
+  id           Int                @id @default(autoincrement())
+  report       DiscrepancyReport? @relation(fields: [reportId], references: [id])
+  reportId     Int?
+  sharedWith   User?              @relation(fields: [sharedWithId], references: [id])
+  sharedWithId Int?
+
+  @@map(name: "discrepancyreportusers")
+}
+
+model InventoryAsset {
+  id                    Int                     @id @default(autoincrement())
+  assetCode             String?                 @db.Text
+  description           String?                 @db.Text
+  serialNumber          String?                 @db.Text
+  assetStatus           InventoryAssetStatus?   @relation(fields: [assetStatusId], references: [id])
+  assetStatusId         Int?
+  department            Department?             @relation(fields: [departmentId], references: [id])
+  departmentId          Int?
+  owner                 String?                 @db.Text
+  endUser               String?                 @db.Text
+  location              String?                 @db.Text
+  dateReceived          DateTime?
+  poNumber              String?                 @db.Text
+  qrKey                 String?                 @db.Text
+  createdAt             DateTime                @default(now())
+  isArchived            Boolean                 @default(false)
+  sharedId              String?                 @unique @default(uuid())
+  inventoryCategory     InventoryCategory?      @relation(fields: [inventoryCategoryId], references: [id])
+  inventoryCategoryId   Int?
+  inventoryAssetUploads InventoryAssetUploads[]
+  assetRequest          AssetRequests[]
+  inventoryAssetLogs    InventoryAssetLogs[]
+
+  @@map(name: "inventoryasset")
+}
+
+model InventoryAssetUploads {
+  id               Int             @id @default(autoincrement())
+  inventoryAsset   InventoryAsset? @relation(fields: [inventoryAssetId], references: [id])
+  inventoryAssetId Int?
+  attachment       Attachment?     @relation(fields: [attachmentId], references: [id])
+  attachmentId     Int?
+
+  @@map(name: "inventoryassetuploads")
+}
+
+model InventoryAssetStatus {
+  id                  Int                  @id @default(autoincrement())
+  name                String               @db.Text
+  display             String?              @db.Text
+  inventoryAsset      InventoryAsset[]
+  inventoryAssetLogs  InventoryAssetLogs[]
+  inventoryCategory   InventoryCategory?   @relation(fields: [inventoryCategoryId], references: [id])
+  inventoryCategoryId Int?
+
+  @@map(name: "inventoryassetstatus")
+}
+
+model InventoryCategory {
+  id                  Int                    @id @default(autoincrement())
+  name                String                 @db.Text
+  inventoryStatusList InventoryAssetStatus[]
+  inventoryAsset      InventoryAsset[]
+  inventoryAssetLogs  InventoryAssetLogs[]
+  assetRequests       AssetRequests[]
+
+  @@map(name: "inventorycategory")
+}
+
+model AssetRequests {
+  id                   Int                    @id @default(autoincrement())
+  eventType            Int
+  eventTitle           String?                @db.Text
+  assetCodeBackup      String?                @db.Text
+  assetDescBackup      String?                @db.Text
+  details              Json?
+  isAnswered           Boolean                @default(false)
+  isApproved           Boolean                @default(false)
+  isArchived           Boolean                @default(false)
+  isHiddenAdmin        Boolean                @default(false)
+  isHiddenNonAdmin     Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  inventoryCategory    InventoryCategory?     @relation(fields: [inventoryCategoryId], references: [id])
+  inventoryCategoryId  Int?
+  requestor            User?                  @relation(name: "requestorUser", fields: [requestorId], references: [id])
+  requestorId          Int?
+  respondent           User?                  @relation(name: "respondentUser", fields: [respondedId], references: [id])
+  respondedId          Int?
+  inventoryAsset       InventoryAsset?        @relation(fields: [inventoryAssetId], references: [id])
+  inventoryAssetId     Int?
+  assetRequestsUploads AssetRequestsUploads[]
+
+  @@map(name: "assetrequests")
+}
+
+model AssetRequestsUploads {
+  id             Int            @id @default(autoincrement())
+  assetRequest   AssetRequests? @relation(fields: [assetRequestId], references: [id])
+  assetRequestId Int?
+  attachment     Attachment?    @relation(fields: [attachmentId], references: [id])
+  attachmentId   Int?
+
+  @@map(name: "assetrequestsuploads")
+}
+
+model InventoryAssetLogs {
+  id                  Int                   @id @default(autoincrement())
+  assetCodeBackup     String?               @db.Text
+  eventTitle          String?               @db.Text
+  details             Json?
+  createdAt           DateTime              @default(now())
+  responsible         User?                 @relation(fields: [responsibleId], references: [id])
+  responsibleId       Int?
+  inventoryAsset      InventoryAsset?       @relation(fields: [inventoryAssetId], references: [id])
+  inventoryAssetId    Int?
+  inventoryCategory   InventoryCategory?    @relation(fields: [inventoryCategoryId], references: [id])
+  inventoryCategoryId Int?
+  assetStatus         InventoryAssetStatus? @relation(fields: [assetStatusId], references: [id])
+  assetStatusId       Int?
+
+  @@map(name: "inventoryassetlogs")
+}
+
+model FAQContent {
+  id          Int       @id @default(autoincrement())
+  content     String?   @db.Text
+  lastUpdated DateTime?
+
+  @@map(name: "faqcontent")
+}
+
+model WarehouseItem {
+  id           Int                    @id @default(autoincrement())
+  itemCode     String?                @db.Text
+  description  String?                @db.Text
+  oum          String?                @db.Text
+  totalQty     Int                    @default(0)
+  remQty       Int                    @default(0)
+  location     String?                @db.Text
+  pendingOrder String?                @db.Text
+  poNumber     String?                @db.Text
+  createdAt    DateTime               @default(now())
+  isArchived   Boolean                @default(false)
+  isHidden     Boolean                @default(false)
+  reasonHide   String?                @db.Text
+  category     WarehouseItemCategory? @relation(fields: [categoryId], references: [id])
+  categoryId   Int?
+
+  @@map(name: "warehouseitem")
+}
+
+model WarehouseItemCategory {
+  id            Int             @id @default(autoincrement())
+  name          String?         @db.Text
+  warehouseItem WarehouseItem[]
+
+  @@map(name: "warehouseitemcategory")
+}
+
+model WarehouseLogs {
+  id           Int       @id @default(autoincrement())
+  itemCode     String?   @db.Text
+  description  String?   @db.Text
+  oum          String?   @db.Text
+  quantity     Int       @default(0)
+  dateReceived DateTime?
+  affiliation  String?   @db.Text
+  reason       String?   @db.Text
+  createdAt    DateTime  @default(now())
+  isArchived   Boolean   @default(false)
+  isHidden     Boolean   @default(false)
+  reasonHide   String?   @db.Text
+
+  @@map(name: "warehouselogs")
+}
+
+model Notification {
+  id                     Int                      @id @default(autoincrement())
+  title                  String?                  @db.Text
+  description            String?                  @db.Text
+  createdAt              DateTime                 @default(now())
+  createdBy              User?                    @relation(fields: [createdById], references: [id])
+  createdById            Int?
+  notificationUserAction NotificationUserAction[]
+
+  @@map(name: "notification")
+}
+
+model NotificationUserAction {
+  id             Int           @id @default(autoincrement())
+  viewed         Boolean       @default(false)
+  hidden         Boolean       @default(false)
+  notifiedUser   User?         @relation(fields: [notifiedUserId], references: [id])
+  notifiedUserId Int?
+  notification   Notification? @relation(fields: [notificationId], references: [id])
+  notificationId Int?
+
+  @@map(name: "notificationuseraction")
+}
